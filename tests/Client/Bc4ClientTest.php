@@ -64,7 +64,10 @@ class Bc4ClientTest extends TestCase
             new MockResponse('[]', ['http_code' => 200]),
         ]);
 
-        $auth = $this->makeAuthStub('access-1');
+        // Real mock here (not makeAuthStub): we assert refresh() is called once.
+        $auth = $this->createMock(AuthenticationInterface::class);
+        $auth->method('requiresReauth')->willReturn(false);
+        $auth->method('decorate')->willReturnArgument(0);
         $auth->expects($this->once())->method('refresh');
 
         $client = $this->makeClient($http, $auth);
@@ -110,7 +113,7 @@ class Bc4ClientTest extends TestCase
             new MockResponse('SHOULD_NOT_BE_CALLED', ['http_code' => 200]),
         ]);
 
-        $auth = $this->createMock(AuthenticationInterface::class);
+        $auth = $this->createStub(AuthenticationInterface::class);
         $auth->method('requiresReauth')->willReturn(true);
 
         $client = $this->makeClient($http, $auth);
@@ -165,7 +168,7 @@ class Bc4ClientTest extends TestCase
 
     private function makeAuthStub(string $accessToken = 'access-1'): AuthenticationInterface
     {
-        $auth = $this->createMock(AuthenticationInterface::class);
+        $auth = $this->createStub(AuthenticationInterface::class);
         $auth->method('requiresReauth')->willReturn(false);
         // Pass the client through unchanged so MockHttpClient::getRequestsCount()
         // reflects the actual call sequence. Header injection is exercised in
