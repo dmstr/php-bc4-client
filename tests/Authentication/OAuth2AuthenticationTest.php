@@ -82,7 +82,7 @@ class OAuth2AuthenticationTest extends TestCase
 
     public function testRequiresReauthReadsFromStorage(): void
     {
-        $storage = $this->createMock(TokenStorageInterface::class);
+        $storage = $this->createStub(TokenStorageInterface::class);
         $storage->method('loadTokens')->willReturn([
             'access_token' => null,
             'refresh_token' => null,
@@ -97,7 +97,7 @@ class OAuth2AuthenticationTest extends TestCase
 
     public function testRequiresReauthSurfacesAsInvalidGrantOnDecorate(): void
     {
-        $storage = $this->createMock(TokenStorageInterface::class);
+        $storage = $this->createStub(TokenStorageInterface::class);
         $storage->method('loadTokens')->willReturn([
             'access_token' => null,
             'refresh_token' => 'r',
