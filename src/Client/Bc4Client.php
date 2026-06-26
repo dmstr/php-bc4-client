@@ -7,6 +7,9 @@ namespace Dmstr\Bc4Client\Client;
 
 use Dmstr\Bc4Client\Authentication\AuthenticationInterface;
 use Dmstr\Bc4Client\Exception\RequestException;
+use Dmstr\Bc4Client\Resource\CardsResource;
+use Dmstr\Bc4Client\Resource\CardTablesResource;
+use Dmstr\Bc4Client\Resource\ColumnsResource;
 use Dmstr\Bc4Client\Resource\PeopleResource;
 use Dmstr\Bc4Client\Resource\ProjectsResource;
 use Dmstr\Bc4Client\Resource\TodoSetsResource;
@@ -38,6 +41,9 @@ class Bc4Client
     private ?TodolistsResource $todolists = null;
     private ?TodosResource $todos = null;
     private ?PeopleResource $people = null;
+    private ?CardTablesResource $cardTables = null;
+    private ?ColumnsResource $columns = null;
+    private ?CardsResource $cards = null;
 
     public function __construct(
         private readonly string $accountId,
@@ -80,6 +86,21 @@ class Bc4Client
     public function people(): PeopleResource
     {
         return $this->people ??= new PeopleResource($this);
+    }
+
+    public function cardTables(): CardTablesResource
+    {
+        return $this->cardTables ??= new CardTablesResource($this);
+    }
+
+    public function columns(): ColumnsResource
+    {
+        return $this->columns ??= new ColumnsResource($this);
+    }
+
+    public function cards(): CardsResource
+    {
+        return $this->cards ??= new CardsResource($this);
     }
 
     /**
