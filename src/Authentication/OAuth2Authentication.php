@@ -16,8 +16,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *   - Proactive refresh when `expires_at < now + 60s`
  *   - Reactive refresh on `401` (handled by {@see Bc4Client::request()} via
  *     {@see refresh()})
- *   - Refresh-token rotation: every refresh yields a new refresh_token that
- *     replaces the previous one in storage
+ *   - Refresh-token rotation when Launchpad sends one: a new refresh_token
+ *     replaces the previous one in storage. The legacy `type=refresh`
+ *     response usually carries only `access_token` (see the "legacy format
+ *     refresh" case in basecamp/basecamp-sdk); the current refresh_token
+ *     then stays valid and is kept
  *   - On `400 invalid_grant`: storage is marked `requires_reauth` and an
  *     {@see InvalidGrantException} is thrown
  *
@@ -27,6 +30,12 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class OAuth2Authentication implements AuthenticationInterface
 {
     private const LAUNCHPAD_TOKEN_URL = 'https://launchpad.37signals.com/authorization/token';
+
+    /**
+     * Access-token lifetime documented by 37signals ("2 week lifetime,
+     * currently"), used when a refresh response omits `expires_in`.
+     */
+    private const DEFAULT_EXPIRES_IN = 1209600;
 
     private ?string $cachedAccessToken = null;
     private ?string $cachedExpiresAt = null;
@@ -138,14 +147,15 @@ class OAuth2Authentication implements AuthenticationInterface
             throw new InvalidGrantException('Refresh token rejected by Launchpad (invalid_grant)');
         }
 
-        if ($status >= 400 || !is_array($body) || !isset($body['access_token'], $body['refresh_token'], $body['expires_in'])) {
+        if ($status >= 400 || !is_array($body) || empty($body['access_token'])) {
             throw new \RuntimeException(sprintf('BC4 token exchange failed (status=%d)', $status));
         }
 
         return [
             'access_token' => (string) $body['access_token'],
-            'refresh_token' => (string) $body['refresh_token'],
-            'expires_in' => (int) $body['expires_in'],
+            // no rotation: the current refresh_token stays valid
+            'refresh_token' => !empty($body['refresh_token']) ? (string) $body['refresh_token'] : $refreshToken,
+            'expires_in' => isset($body['expires_in']) ? (int) $body['expires_in'] : self::DEFAULT_EXPIRES_IN,
         ];
     }
 
