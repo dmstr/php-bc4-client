@@ -53,6 +53,66 @@ class OAuth2AuthenticationTest extends TestCase
         $this->assertSame(1, $launchpad->getRequestsCount(), 'Exactly one Launchpad call');
     }
 
+    public function testRefreshWithoutRotationKeepsCurrentRefreshToken(): void
+    {
+        // Legacy `type=refresh` response: access_token only, no rotation and
+        // no expires_in (cf. "legacy format refresh" in basecamp/basecamp-sdk).
+        $launchpad = new MockHttpClient([
+            new MockResponse(json_encode(['access_token' => 'access-2']), ['http_code' => 200]),
+        ]);
+
+        $exchanged = null;
+        $storage = $this->expiredTokenStorage(function (callable $exchange) use (&$exchanged) {
+            $exchanged = $exchange('refresh-1');
+
+            return [
+                'access_token' => $exchanged['access_token'],
+                'refresh_token' => $exchanged['refresh_token'],
+                'expires_at' => '2030-01-01T00:00:00+00:00',
+            ];
+        });
+
+        $auth = new OAuth2Authentication('cid', 'secret', 'TestApp', 't@e.de', $storage, $launchpad);
+
+        $this->assertSame('access-2', $auth->getAccessToken());
+        $this->assertSame([
+            'access_token' => 'access-2',
+            'refresh_token' => 'refresh-1',
+            'expires_in' => 1209600,
+        ], $exchanged);
+    }
+
+    public function testRefreshResponseWithoutAccessTokenFails(): void
+    {
+        $launchpad = new MockHttpClient([
+            new MockResponse(json_encode(['expires_in' => 1209600]), ['http_code' => 200]),
+        ]);
+        $storage = $this->expiredTokenStorage(fn (callable $exchange) => $exchange('refresh-1'));
+
+        $auth = new OAuth2Authentication('cid', 'secret', 'TestApp', 't@e.de', $storage, $launchpad);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('BC4 token exchange failed (status=200)');
+        $auth->getAccessToken();
+    }
+
+    private function expiredTokenStorage(callable $refreshAndPersist): TokenStorageInterface
+    {
+        $storage = $this->createStub(TokenStorageInterface::class);
+        $storage->method('isFresh')->willReturnCallback(
+            static fn (string $iso) => (new \DateTimeImmutable($iso))->getTimestamp() > time() + 60,
+        );
+        $storage->method('loadTokens')->willReturn([
+            'access_token' => null,
+            'refresh_token' => 'refresh-1',
+            'expires_at' => '2020-01-01T00:00:00+00:00',
+            'requires_reauth' => false,
+        ]);
+        $storage->method('refreshAndPersist')->willReturnCallback($refreshAndPersist);
+
+        return $storage;
+    }
+
     public function testInvalidGrantMarksRequiresReauth(): void
     {
         $launchpad = new MockHttpClient([
